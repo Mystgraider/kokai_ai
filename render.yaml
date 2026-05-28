@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: kokai-ai
+    env: docker
+    plan: free
+    autoDeploy: true
