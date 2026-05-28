@@ -1,8 +1,82 @@
+import os
+import time
+import requests
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+app = FastAPI(title="KOKAI_AI")
+
+# =========================
+# CORS
+# =========================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# =========================
+# RATE LIMIT
+# =========================
+
+RATE_LIMIT_STORE = {}
+MAX_REQUESTS_PER_MINUTE = 15
+
+@app.middleware("http")
+async def secure_gateway_middleware(request: Request, call_next):
+
+    client_ip = request.client.host if request.client else "unknown"
+
+    current_time = time.time()
+
+    if client_ip not in RATE_LIMIT_STORE:
+        RATE_LIMIT_STORE[client_ip] = []
+
+    RATE_LIMIT_STORE[client_ip] = [
+        t for t in RATE_LIMIT_STORE[client_ip]
+        if current_time - t < 60
+    ]
+
+    if len(RATE_LIMIT_STORE[client_ip]) >= MAX_REQUESTS_PER_MINUTE:
+        return {
+            "error": "Rate limit exceeded"
+        }
+
+    RATE_LIMIT_STORE[client_ip].append(current_time)
+
+    response = await call_next(request)
+
+    return response
+
+# =========================
+# REQUEST MODEL
+# =========================
+
+class RequestBody(BaseModel):
+    prompt: str
+
+# =========================
+# HOME
+# =========================
+
+@app.get("/")
+async def root():
+    return {
+        "status": "KOKAI_AI ONLINE",
+        "message": "Render deployment successful"
+    }
+
+# =========================
+# CHAT
+# =========================
+
 @app.post("/chat")
 async def chat(body: RequestBody):
-
-    import os
-    import requests
 
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
