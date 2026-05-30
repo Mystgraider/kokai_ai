@@ -39,7 +39,6 @@ async def secure_gateway_middleware(request: Request, call_next):
     ]
 
     if len(RATE_LIMIT_STORE[client_ip]) >= MAX_REQUESTS_PER_MINUTE:
-        # ✅ FIXED: dapat JSONResponse, hindi plain dict
         return JSONResponse(
             status_code=429,
             content={"error": "Rate limit exceeded. Try again later."}
@@ -78,10 +77,15 @@ async def chat(body: RequestBody):
             content={"error": "OPENROUTER_API_KEY is not set on the server."}
         )
 
+    # ✅ Updated May 2026 — currently active free models on OpenRouter
     MODELS = [
-        "meta-llama/llama-3.1-8b-instruct:free",
-        "mistralai/mistral-7b-instruct:free",
-        "google/gemma-2-9b-it:free"
+        "openrouter/auto",                          # Auto-selects best available free model
+        "meta-llama/llama-4-maverick:free",         # Meta Llama 4 Maverick
+        "meta-llama/llama-4-scout:free",            # Meta Llama 4 Scout
+        "deepseek/deepseek-r1:free",                # DeepSeek R1 (reasoning)
+        "deepseek/deepseek-v3-base:free",           # DeepSeek V3
+        "mistralai/mistral-small-3.1-24b-instruct:free",  # Mistral Small
+        "nvidia/llama-3.1-nemotron-nano-8b-v1:free" # Nvidia Nemotron
     ]
 
     headers = {
@@ -111,7 +115,10 @@ async def chat(body: RequestBody):
             data = response.json()
             if "choices" in data:
                 ai_response = data["choices"][0]["message"]["content"]
-                return {"response": ai_response, "model_used": model}
+                return {
+                    "response": ai_response,
+                    "model_used": model
+                }
             last_error = str(data)
         except Exception as e:
             last_error = str(e)
