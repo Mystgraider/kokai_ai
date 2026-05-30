@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>KOKAI_AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --accent: #00ff9d;
+    --accent2: #7b5ea7;
+    --accent3: #ff6b6b;
+    --text: #e8e8f0;
+    --text-dim: #6b6b8a;
+    --border: #2a2a3a;
+    --radius: 14px;
+    --font-mono: 'Space Mono', monospace;
+    --font-main: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-main);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* NOISE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* HEADER */
+  .header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .status-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(0,255,157,0.1);
+    border: 1px solid rgba(0,255,157,0.3);
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+  }
+
+  /* NAV TABS */
+  .nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(10,10,15,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    display: flex;
+    padding: 8px 0 env(safe-area-inset-bottom, 8px);
+  }
+
+  .nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--font-main);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .nav-btn.active {
+    color: var(--accent);
+  }
+
+  .nav-btn.active::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 30px; height: 2px;
+    background: var(--accent);
+    border-radius: 0 0 4px 4px;
+  }
+
+  .nav-icon {
+    font-size: 20px;
+    transition: transform 0.2s;
+  }
+
+  .nav-btn.active .nav-icon {
+    transform: translateY(-2px);
+  }
+
+  /* MAIN CONTENT */
+  .main {
+    padding-top: 65px;
+    padding-bottom: 90px;
+    min-height: 100vh;
+  }
+
+  .tab-content {
+    display: none;
+    padding: 16px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .tab-content.active { display: flex; flex-direction: column; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===== CHAT TAB ===== */
+  .chat-messages {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: calc(100vh - 200px);
+    padding-bottom: 80px;
+  }
+
+  .msg {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    animation: msgIn 0.3s ease;
+  }
+
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    padding: 0 4px;
+  }
+
+  .msg.user .msg-label { text-align: right; color: var(--accent); }
+
+  .msg-bubble {
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    line-height: 1.6;
+    max-width: 85%;
+    word-break: break-word;
+  }
+
+  .msg.ai .msg-bubble {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+    align-self: flex-start;
+    color: var(--text);
+  }
+
+  .msg.user .msg-bubble {
+    background: linear-gradient(135deg, rgba(0,255,157,0.15), rgba(123,94,167,0.15));
+    border: 1px solid rgba(0,255,157,0.3);
+    border-bottom-right-radius: 4px;
+    align-self: flex-end;
+    text-align: right;
+  }
+
+  .msg.system .msg-bubble {
+    background: rgba(123,94,167,0.1);
+    border: 1px solid rgba(123,94,167,0.3);
+    align-self: center;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    max-width: 100%;
+  }
+
+  .chat-input-area {
+    position: fixed;
+    bottom: 68px; left: 0; right: 0;
+    padding: 12px 16px;
+    background: rgba(10,10,15,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    z-index: 50;
+  }
+
+  .chat-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--font-main);
+    font-size: 14px;
+    outline: none;
+    resize: none;
+    min-height: 42px;
+    max-height: 100px;
+    transition: border-color 0.2s;
+  }
+
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-input::placeholder { color: var(--text-dim); }
+
+  .send-btn {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    background: var(--accent);
+    border: none;
+    color: #000;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .send-btn:active { transform: scale(0.92); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* THINKING */
+  .thinking {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 12px 16px;
+  }
+
+  .thinking span {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: thinking 1.2s infinite;
+  }
+
+  .thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes thinking {
+    0%, 100% { opacity: 0.2; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-4px); }
+  }
+
+  /* CLEAR CHAT BTN */
+  .clear-btn {
+    position: fixed;
+    top: 70px; right: 16px;
+    z-index: 99;
+    background: rgba(255,107,107,0.1);
+    border: 1px solid rgba(255,107,107,0.3);
+    color: var(--accent3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  /* ===== FILE ANALYZER TAB ===== */
+  .section-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(0,255,157,0.03);
+  }
+
+  .upload-zone input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+
+  .upload-text {
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .upload-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    opacity: 0.6;
+  }
+
+  .file-info {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 12px;
+    display: none;
+  }
+
+  .file-info.show { display: flex; align-items: center; gap: 12px; }
+
+  .file-icon { font-size: 28px; }
+
+  .file-meta { flex: 1; }
+  .file-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .file-size { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+
+  .analyze-btn, .action-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: var(--radius);
+    border: none;
+    background: linear-gradient(135deg, var(--accent), #00cc7a);
+    color: #000;
+    font-family: var(--font-main);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    margin-top: 12px;
+    transition: all 0.2s;
+  }
+
+  .analyze-btn:active, .action-btn:active { transform: scale(0.98); }
+  .analyze-btn:disabled, .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .result-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    display: none;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .result-box.show { display: block; }
+
+  /* ===== PDF REPORT TAB ===== */
+  .form-group {
+    margin-bottom: 14px;
+  }
+
+  .form-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .form-input, .form-textarea, .form-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: var(--font-main);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .form-input:focus, .form-textarea:focus, .form-select:focus {
+    border-color: var(--accent);
+  }
+
+  .form-textarea { resize: vertical; min-height: 80px; }
+  .form-select option { background: var(--surface2); }
+
+  .ai-fill-btn {
+    width: 100%;
+    padding: 11px;
+    border-radius: 10px;
+    border: 1px solid rgba(123,94,167,0.5);
+    background: rgba(123,94,167,0.1);
+    color: #b39ddb;
+    font-family: var(--font-main);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+  }
+
+  .ai-fill-btn:active { transform: scale(0.98); }
+
+  .download-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font-family: var(--font-main);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+  }
+
+  .download-btn:hover { background: rgba(0,255,157,0.1); }
+
+  /* LOADING OVERLAY */
+  .loading {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(10px);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .loading.show { display: flex; }
+
+  .loading-spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 100px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 30px;
+    padding: 10px 20px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 300;
+    white-space: nowrap;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* WELCOME */
+  .welcome-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .welcome-card::before {
+    content: '';
+    position: absolute;
+    top: -30px; right: -30px;
+    width: 100px; height: 100px;
+    background: radial-gradient(circle, rgba(0,255,157,0.15), transparent);
+    border-radius: 50%;
+  }
+
+  .welcome-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+
+  .welcome-title span { color: var(--accent); }
+
+  .welcome-sub {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .model-tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--accent2);
+    background: rgba(123,94,167,0.15);
+    border: 1px solid rgba(123,94,167,0.3);
+    padding: 3px 8px;
+    border-radius: 20px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    KOKAI_AI
+  </div>
+  <div class="status-badge">ONLINE</div>
+</div>
+
+<!-- LOADING -->
+<div class="loading" id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loadingText">PROCESSING...</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ===== TAB: CHAT ===== -->
+  <div class="tab-content active" id="tab-chat">
+    <button class="clear-btn" onclick="clearChat()">✕ CLEAR</button>
+
+    <div class="welcome-card">
+      <div class="welcome-title">Hello, <span>KOKAI</span> 👋</div>
+      <div class="welcome-sub">AI assistant na may memory. Naalala niya ang inyong conversation.</div>
+      <div class="model-tag">▸ OPENROUTER/AUTO</div>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+      <div class="msg system">
+        <div class="msg-bubble">Kumusta! Tanungin mo ako ng kahit ano. May memory na ako ng aming conversation. 🧠</div>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <textarea class="chat-input" id="chatInput" placeholder="Mag-type ng mensahe..." rows="1"
+        onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendChat()">↑</button>
+    </div>
+  </div>
+
+  <!-- ===== TAB: FILE ANALYZER ===== -->
+  <div class="tab-content" id="tab-file">
+    <div class="section-title">▸ DOCUMENT / FILE ANALYZER</div>
+
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept=".txt,.pdf,.csv,.json,.md,.log"
+        onchange="handleFileUpload(this)">
+      <div class="upload-icon">📄</div>
+      <div class="upload-text">I-tap para mag-upload ng file</div>
+      <div class="upload-sub">TXT • PDF • CSV • JSON • MD • LOG</div>
+    </div>
+
+    <div class="file-info" id="fileInfo">
+      <div class="file-icon" id="fileIcon">📄</div>
+      <div class="file-meta">
+        <div class="file-name" id="fileName">—</div>
+        <div class="file-size" id="fileSize">—</div>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:12px;">
+      <label class="form-label">INSTRUCTION SA AI</label>
+      <select class="form-select" id="analyzeMode">
+        <option value="Summarize this document in detail. Give key points, main topics, and important findings.">📋 Summarize</option>
+        <option value="Extract all key information, facts, names, dates, and numbers from this document.">🔍 Extract Key Info</option>
+        <option value="Analyze the sentiment and tone of this document. Is it positive, negative, or neutral?">😐 Sentiment Analysis</option>
+        <option value="Find any errors, inconsistencies, or red flags in this document.">🚨 Find Issues / Red Flags</option>
+        <option value="Translate this document to Filipino (Tagalog).">🇵🇭 Translate to Filipino</option>
+        <option value="Create a professional forensic analysis report of this document including metadata insights, key actors, timeline, and anomalies.">🔬 Forensic Analysis</option>
+      </select>
+    </div>
+
+    <button class="analyze-btn" id="analyzeBtn" onclick="analyzeFile()" disabled>
+      🔍 ANALYZE FILE
+    </button>
+
+    <div class="result-box" id="analyzeResult"></div>
+  </div>
+
+  <!-- ===== TAB: PDF REPORT ===== -->
+  <div class="tab-content" id="tab-pdf">
+    <div class="section-title">▸ PDF REPORT GENERATOR</div>
+
+    <div class="form-group">
+      <label class="form-label">REPORT TYPE</label>
+      <select class="form-select" id="reportType">
+        <option value="Incident Report">📋 Incident Report</option>
+        <option value="Forensic Analysis Report">🔬 Forensic Analysis</option>
+        <option value="Investigation Report">🔎 Investigation Report</option>
+        <option value="General Summary Report">📄 General Summary</option>
+        <option value="Case Report">📁 Case Report</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">CASE / REPORT TITLE</label>
+      <input type="text" class="form-input" id="reportTitle" placeholder="e.g. Case #2026-001">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">PREPARED BY</label>
+      <input type="text" class="form-input" id="reportPreparedBy" placeholder="Iyong pangalan">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">DETAILS / FACTS</label>
+      <textarea class="form-textarea" id="reportDetails" placeholder="Ilagay ang mga detalye, facts, at findings..."></textarea>
+    </div>
+
+    <button class="ai-fill-btn" onclick="aiFillReport()">
+      ✨ AI — Auto-generate Content
+    </button>
+
+    <button class="analyze-btn" onclick="generatePDF()" style="margin-top:8px;">
+      📊 GENERATE PDF
+    </button>
+
+    <div class="result-box" id="pdfPreview"></div>
+
+    <button class="download-btn" id="downloadBtn" onclick="downloadPDF()" style="display:none;">
+      ⬇️ DOWNLOAD PDF
+    </button>
+  </div>
+
+</div>
+
+<!-- NAV -->
+<nav class="nav">
+  <button class="nav-btn active" onclick="switchTab('chat', this)">
+    <span class="nav-icon">💬</span>
+    CHAT
+  </button>
+  <button class="nav-btn" onclick="switchTab('file', this)">
+    <span class="nav-icon">📄</span>
+    ANALYZE
+  </button>
+  <button class="nav-btn" onclick="switchTab('pdf', this)">
+    <span class="nav-icon">📊</span>
+    REPORT
+  </button>
+</nav>
+
+<script>
+const API = 'https://kokai-ai.onrender.com/chat';
+let chatHistory = [];
+let currentFileContent = '';
+let generatedReportText = '';
+
+// ===== TAB SWITCHING =====
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ===== CHAT =====
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const prompt = input.value.trim();
+  if (!prompt) return;
+
+  const sendBtn = document.getElementById('sendBtn');
+  sendBtn.disabled = true;
+  input.value = '';
+  input.style.height = 'auto';
+
+  appendMsg('user', prompt);
+  chatHistory.push({ role: 'user', content: prompt });
+
+  const thinkingEl = appendThinking();
+
+  try {
+    // Build full conversation context
+    const contextPrompt = chatHistory.length > 2
+      ? `[CONVERSATION HISTORY]\n${chatHistory.slice(0, -1).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}\n\n[CURRENT MESSAGE]\n${prompt}`
+      : prompt;
+
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: contextPrompt })
+    });
+
+    const data = await res.json();
+    thinkingEl.remove();
+
+    const reply = data.response || data.error || 'Walang sagot.';
+    chatHistory.push({ role: 'assistant', content: reply });
+
+    // Keep history manageable (last 20 messages)
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+
+    appendMsg('ai', reply, data.model_used);
+  } catch (err) {
+    thinkingEl.remove();
+    appendMsg('ai', '❌ Hindi ma-reach ang server. Check mo ang internet mo.');
+  }
+
+  sendBtn.disabled = false;
+  scrollBottom();
+}
+
+function appendMsg(role, text, model) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  const label = role === 'user' ? 'IKAW' : (model ? `KOKAI · ${model.split('/').pop().toUpperCase()}` : 'KOKAI_AI');
+
+  div.innerHTML = `
+    <div class="msg-label">${label}</div>
+    <div class="msg-bubble">${escapeHtml(text)}</div>
+  `;
+  container.appendChild(div);
+  scrollBottom();
+  return div;
+}
+
+function appendThinking() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.innerHTML = `
+    <div class="msg-label">KOKAI_AI</div>
+    <div class="msg-bubble">
+      <div class="thinking"><span></span><span></span><span></span></div>
+    </div>`;
+  container.appendChild(div);
+  scrollBottom();
+  return div;
+}
+
+function scrollBottom() {
+  setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 100);
+}
+
+function clearChat() {
+  chatHistory = [];
+  document.getElementById('chatMessages').innerHTML = `
+    <div class="msg system">
+      <div class="msg-bubble">Chat cleared. Bagong conversation. 🧹</div>
+    </div>`;
+  showToast('Chat cleared');
+}
+
+// ===== FILE ANALYZER =====
+function handleFileUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const icons = { txt: '📝', pdf: '📕', csv: '📊', json: '🔧', md: '📋', log: '🗒️' };
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  document.getElementById('fileIcon').textContent = icons[ext] || '📄';
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = formatBytes(file.size);
+  document.getElementById('fileInfo').classList.add('show');
+  document.getElementById('analyzeBtn').disabled = false;
+  document.getElementById('analyzeResult').classList.remove('show');
+
+  const reader = new FileReader();
+  reader.onload = e => { currentFileContent = e.target.result; };
+  reader.readAsText(file);
+
+  showToast('File loaded ✓');
+}
+
+async function analyzeFile() {
+  if (!currentFileContent) return showToast('Mag-upload muna ng file');
+
+  showLoading('ANALYZING FILE...');
+
+  const mode = document.getElementById('analyzeMode').value;
+  const prompt = `${mode}\n\n---FILE CONTENT---\n${currentFileContent.slice(0, 8000)}`;
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    const result = data.response || data.error || 'Walang sagot.';
+
+    document.getElementById('analyzeResult').textContent = result;
+    document.getElementById('analyzeResult').classList.add('show');
+  } catch (err) {
+    showToast('❌ Error sa server');
+  }
+
+  hideLoading();
+}
+
+// ===== PDF REPORT =====
+async function aiFillReport() {
+  const type = document.getElementById('reportType').value;
+  const title = document.getElementById('reportTitle').value || 'Untitled Case';
+  const existing = document.getElementById('reportDetails').value;
+
+  showLoading('AI IS WRITING...');
+
+  const prompt = `Create a professional ${type} for a case titled "${title}". ${existing ? `Additional context: ${existing}` : ''} 
+  Write a complete, formal report with: Executive Summary, Background, Findings, Analysis, and Recommendations. 
+  Use professional law enforcement / forensic language. Be detailed and thorough.`;
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    const result = data.response || '';
+    document.getElementById('reportDetails').value = result;
+    showToast('AI content generated ✓');
+  } catch (err) {
+    showToast('❌ Error sa AI');
+  }
+
+  hideLoading();
+}
+
+async function generatePDF() {
+  const type = document.getElementById('reportType').value;
+  const title = document.getElementById('reportTitle').value || 'Untitled';
+  const preparedBy = document.getElementById('reportPreparedBy').value || 'Unknown';
+  const details = document.getElementById('reportDetails').value;
+
+  if (!details) return showToast('Mag-lagay ng detalye muna');
+
+  showLoading('GENERATING REPORT...');
+
+  generatedReportText = `${type.toUpperCase()}\n${'='.repeat(50)}\nTitle: ${title}\nPrepared By: ${preparedBy}\nDate: ${new Date().toLocaleDateString('en-PH', {year:'numeric',month:'long',day:'numeric'})}\n${'='.repeat(50)}\n\n${details}`;
+
+  document.getElementById('pdfPreview').textContent = generatedReportText;
+  document.getElementById('pdfPreview').classList.add('show');
+  document.getElementById('downloadBtn').style.display = 'block';
+
+  hideLoading();
+  showToast('Report ready ✓');
+}
+
+function downloadPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+  const type = document.getElementById('reportType').value;
+  const title = document.getElementById('reportTitle').value || 'Untitled';
+  const preparedBy = document.getElementById('reportPreparedBy').value || 'Unknown';
+  const details = document.getElementById('reportDetails').value;
+  const date = new Date().toLocaleDateString('en-PH', {year:'numeric',month:'long',day:'numeric'});
+
+  // Header
+  doc.setFillColor(10, 10, 15);
+  doc.rect(0, 0, 210, 40, 'F');
+  doc.setTextColor(0, 255, 157);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('KOKAI_AI', 15, 18);
+  doc.setFontSize(10);
+  doc.setTextColor(180, 180, 200);
+  doc.text(type.toUpperCase(), 15, 27);
+  doc.setFontSize(8);
+  doc.text(`Date: ${date}  |  Prepared by: ${preparedBy}`, 15, 35);
+
+  // Title
+  doc.setTextColor(20, 20, 30);
+  doc.setFillColor(240, 240, 250);
+  doc.rect(0, 40, 210, 18, 'F');
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(20, 20, 50);
+  doc.text(title, 15, 52);
+
+  // Content
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 30, 40);
+  const lines = doc.splitTextToSize(details, 180);
+  doc.text(lines, 15, 68);
+
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(150);
+    doc.text(`KOKAI_AI — Confidential Report — Page ${i} of ${pageCount}`, 15, 290);
+  }
+
+  doc.save(`KOKAI_REPORT_${title.replace(/\s+/g,'_')}.pdf`);
+  showToast('PDF downloaded ✓');
+}
+
+// ===== UTILS =====
+function showLoading(text = 'PROCESSING...') {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loading').classList.add('show');
+}
+
+function hideLoading() {
+  document.getElementById('loading').classList.remove('show');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1048576).toFixed(1) + ' MB';
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+</script>
+</body>
+</html>
